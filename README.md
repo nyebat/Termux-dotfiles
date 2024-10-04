@@ -1,0 +1,2 @@
+# termux-dotfiles
+Config termux
