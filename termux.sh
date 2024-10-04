@@ -1,6 +1,13 @@
 #!/bin/bash
 
 setup_termux() {
+    [ ! -d ~/.config ] && mkdir -p .config
+    dotfiles="dotfiles"
+
+    git clone https://github.com/nyebat/termux-dotfiles ~/${dotfiles}
+    rm -rf ~/${dotfiles}/{.git/,README.md}
+    cp -r  ~/${dotfiles}/. ~/ && rm -rf ~/${dotfiles}
+
     # setup color scheme
     path="https://github.com/dracula/termux/archive/master.zip"
     theme="dracula"
@@ -21,15 +28,6 @@ setup_termux() {
 
     [ ! -d "$HOME/storage" ] && termux-setup-storage
     termux-change-repo
-}
-
-setup_nvim() {
-    [ ! -d ~/.config ] && mkdir -p .config
-    dotfiles="nvim-termux"
-
-    git clone https://github.com/nyebat/nvim-dotfiles ~/${dotfiles}
-    rm -rf ~/${dotfiles}/{.git/,README.md}
-    cp -r  ~/${dotfiles}/. ~/ && rm -rf ~/{${dotfiles},termux.sh}
 }
 
 install_packages() {
@@ -66,7 +64,6 @@ set_fish_as_default() {
 }
 
 setup_termux
-setup_nvim
 install_packages
 set_fish_as_default
 
