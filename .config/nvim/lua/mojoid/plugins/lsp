@@ -1,0 +1,428 @@
+return {
+  -- nvim-lsp
+  {
+    "williamboman/mason.nvim",
+    event = { "BufReadPre" },
+    dependencies = {
+      { "williamboman/mason-lspconfig.nvim" },
+      -- completion
+      { "hrsh7th/cmp-nvim-lsp" },
+      -- linters
+      { "jose-elias-alvarez/null-ls.nvim" }, -- for formatters and linters
+      -- mason
+      {
+        "neovim/nvim-lspconfig",
+        config = function()
+          -- nvim/lua/user/lsp/handlers.lua
+
+          -- First, we declare an empty object and put auto-complete features from nvim-cmp (we will set up cmp.lua later) in the LSP
+          local M = {}
+
+          M.capabilities = vim.lsp.protocol.make_client_capabilities()
+
+          -- protected call to get the cmp
+          local status_cmp_ok, cmp_nvim_lsp = pcall(require, "cmp_nvim_lsp")
+          if not status_cmp_ok then
+            return
+          end
+
+          M.capabilities.textDocument.completion.completionItem.snippetSupport = true
+          M.capabilities = cmp_nvim_lsp.default_capabilities(M.capabilities)
+
+          -- Here we declare the setup function and add the modifications in signs and extra configs, like virtual text, false update_in_insert, rounded borders for float windows, etc.
+          M.setup = function()
+            local signs = {
+              -- change the "?" to an icon that you like
+              { name = 'DiagnosticSignError', text = '' },
+              { name = 'DiagnosticSignWarn', text = '' },
+              { name = 'DiagnosticSignHint', text = '⚑' },
+              { name = 'DiagnosticSignInfo', text = '' },
+            }
+
+            for _, sign in ipairs(signs) do
+              vim.fn.sign_define(sign.name, { texthl = sign.name, text = sign.text, numhl = "" })
+            end
+
+            local config = {
+              virtual_text = true,
+              -- show signs
+              signs = {
+                active = signs,
+              },
+              update_in_insert = true,
+              underline = true,
+              severity_sort = true,
+              float = {
+                border = 'rounded',
+                source = 'always',
+              },
+            }
+            vim.diagnostic.config(config)
+
+            vim.lsp.handlers['textDocument/hover'] = vim.lsp.with(
+              vim.lsp.handlers.hover,
+              { border = 'rounded' }
+            )
+
+            vim.lsp.handlers['textDocument/signatureHelp'] = vim.lsp.with(
+              vim.lsp.handlers.signature_help,
+              { border = 'rounded' }
+            )
+          end
+
+          -- Here we set up keymaps. You can change them if you already have specifics for these functions, or just want to try another keymap.
+          local function lsp_keymaps(bufnr)
+            local opts = { noremap = true, silent = true }
+            -- Displays hover information about the symbol under the cursor
+            vim.api.nvim_buf_set_keymap(bufnr, 'n', 'K', '<cmd>lua vim.lsp.buf.hover()<cr>', opts)
+
+            -- Jump to the definition
+            vim.api.nvim_buf_set_keymap(bufnr, 'n', 'gd', '<cmd>lua vim.lsp.buf.definition()<cr>', opts)
+
+            -- Jump to declaration
+            vim.api.nvim_buf_set_keymap(bufnr, 'n', 'gD', '<cmd>lua vim.lsp.buf.declaration()<cr>', opts)
+
+            -- Lists all the implementations for the symbol under the cursor
+            vim.api.nvim_buf_set_keymap(bufnr, 'n', 'gi', '<cmd>lua vim.lsp.buf.implementation()<cr>', opts)
+
+            -- Jumps to the definition of the type symbol
+            vim.api.nvim_buf_set_keymap(bufnr, 'n', 'go', '<cmd>lua vim.lsp.buf.type_definition()<cr>', opts)
+
+            -- Lists all the references
+            vim.api.nvim_buf_set_keymap(bufnr, 'n', 'gr', '<cmd>lua vim.lsp.buf.references()<cr>', opts)
+
+            -- Displays a function's signature information
+            vim.api.nvim_buf_set_keymap(bufnr, 'n', 'gs', '<cmd>lua vim.lsp.buf.signature_help()<cr>', opts)
+
+            -- Renames all references to the symbol under the cursor
+            -- vim.api.nvim_buf_set_keymap(bufnr, 'n', 'glr', '<cmd>lua vim.lsp.buf.rename()<cr>', opts)
+            vim.api.nvim_buf_set_keymap(bufnr, "n", "<leader>nn", "<cmd>lua vim.lsp.buf.rename()<CR>", opts)
+
+            -- Selects a code action available at the current cursor position
+            vim.api.nvim_buf_set_keymap(bufnr, 'n', '<F4>', '<cmd>lua vim.lsp.buf.code_action()<cr>', opts)
+            vim.api.nvim_buf_set_keymap(bufnr, 'x', '<F4>', '<cmd>lua vim.lsp.buf.range_code_action()<cr>', opts)
+
+            -- Show diagnostics in a floating window
+            vim.api.nvim_buf_set_keymap(bufnr, 'n', 'gl', '<cmd>lua vim.diagnostic.open_float()<cr>', opts)
+
+            -- Move to the previous diagnostic
+            vim.api.nvim_buf_set_keymap(bufnr, 'n', '[d', '<cmd>lua vim.diagnostic.goto_prev()<cr>', opts)
+
+            -- Move to the next diagnostic
+            -- vim.api.nvim_buf_set_keymap('n', ']d', '<cmd>lua vim.diagnostic.goto_next()<cr>', opts)
+
+
+            vim.cmd([[ command! Format execute 'lua vim.lsp.buf.format()' ]])
+          end
+
+          -- Here we let the LSP prioritize null-ls formatters. Why? Normally when we install a separate formatter or linter in null-ls we want to use just them.
+          -- if you don't prioritize any, neovim will ask you every time you format which one you want to use.
+          local lsp_formatting = function(bufnr)
+            vim.lsp.buf.format({
+              filter = function(client)
+                return client.name == "null-ls"
+              end,
+              bufnr = bufnr,
+            })
+          end
+
+          local augroup = vim.api.nvim_create_augroup("LspFormatting", {})
+
+          -- this function will attach our previously set keymaps and our lsp_formatting function to every buffer.
+          M.on_attach = function(client, bufnr)
+            lsp_keymaps(bufnr)
+
+            if client.supports_method("textDocument/formatting") then
+              vim.api.nvim_clear_autocmds({ group = augroup, buffer = bufnr })
+              vim.api.nvim_create_autocmd("BufWritePre", {
+                group = augroup,
+                buffer = bufnr,
+                callback = function()
+                  lsp_formatting(bufnr)
+                end,
+              })
+            end
+
+            local status_navic_ok, nvim_navic = pcall(require, "nvim-navic")
+            if status_navic_ok then
+              if client.server_capabilities["documentSymbolProvider"] then
+                nvim_navic.attach(client, bufnr)
+              end
+            end
+          end
+
+          -- And finally, here we create a way to toggle format on save with the command "LspToggleAutoFormat" and after everything, we return the M object to use it in other files.
+          function M.enable_format_on_save()
+            -- Define an augroup for formatting on save
+            local format_on_save = vim.api.nvim_create_augroup("format_on_save", { clear = true })
+
+            -- Add an autocmd to the augroup
+            vim.api.nvim_create_autocmd("BufWritePre", {
+              group = format_on_save,
+              pattern = "*",
+              callback = function()
+                vim.lsp.buf.format({ async = false })
+              end,
+            })
+            vim.notify "Enbled format on save"
+          end
+
+          function M.disable_format_on_save()
+            M.remove_augroup "format_on_save"
+            vim.notify "Disabled format on save"
+          end
+
+          function M.toggle_format_on_save()
+            if vim.fn.exists "#format_on_save#BufWritePre" == 0 then
+              M.enable_format_on_save()
+            else
+              M.disable_format_on_save()
+            end
+          end
+
+          function M.remove_augroup(name)
+            if vim.fn.exists("#" .. name) == 1 then
+              vim.cmd("au! " .. name)
+            end
+          end
+
+          vim.cmd [[ command! LspToggleAutoFormat execute 'lua ]]
+
+          -- Toggle "format on save" once, to start with the format on.
+          M.toggle_format_on_save()
+          -- M.disable_format_on_save()
+
+          return M.setup()
+        end
+      },
+    },
+    config = function()
+      -- nvim/lua/config/lsp/mason.lua
+
+      -- protected calls
+      local status_ok, mason = pcall(require, "mason")
+      if not status_ok then
+        return
+      end
+
+      local status_ok_1, mason_lspconfig = pcall(require, "mason-lspconfig")
+      if not status_ok_1 then
+        return
+      end
+
+      -- setup offline (client native system)
+      local servers = {
+        "rust_analyzer",
+        "clangd",
+        "lua_ls",
+        "bashls"
+      }
+
+      -- Here we declare which settings to pass to the mason, and also ensure servers are installed. If not, they will be installed automatically.
+      mason.setup({
+        ui = {
+          border = "rounded",
+          icons = {
+            package_installed = "◍",
+            package_pending = "◍",
+            package_uninstalled = "◍",
+          },
+        },
+        log_level = vim.log.levels.INFO,
+        max_concurrent_installers = 4,
+      })
+      mason_lspconfig.setup {
+        --[[ uncomment if install client via mason
+            comment if install client via system package manager (native) ]]
+
+        ensure_installed = { "bashls", },
+        automatic_installation = false,
+      }
+
+      -- we'll need to call lspconfig to pass our server to the native neovim lspconfig.
+      local lspconfig_status_ok, lspconfig = pcall(require, "lspconfig")
+      if not lspconfig_status_ok then
+        return
+      end
+
+      local opts = {}
+
+      -- loop through the servers
+      local cap = vim.lsp.protocol.make_client_capabilities()
+      for _, server in pairs(servers) do
+        opts = {
+          -- getting "on_attach" and capabilities from handlers
+          on_attach = cap.on_attach,
+          capabilities = cap.capabilities,
+        }
+
+        -- get the server name
+        server = vim.split(server, "@")[1]
+
+        -- pass them to lspconfig
+        lspconfig[server].setup(opts)
+      end
+    end
+  },
+
+  {
+    "simrat39/rust-tools.nvim",
+    event = { "BufReadPre" },
+    dependencies = {
+      'nvim-lua/plenary.nvim',
+      'mfussenegger/nvim-dap'
+    },
+    config = function()
+      local opts = {
+        tools = { -- rust-tools options
+
+          -- how to execute terminal commands
+          -- options right now: termopen / quickfix / toggleterm / vimux
+          executor = require("rust-tools.executors").termopen,
+
+          -- callback to execute once rust-analyzer is done initializing the workspace
+          -- The callback receives one parameter indicating the `health` of the server: "ok" | "warning" | "error"
+          on_initialized = nil,
+
+          -- automatically call RustReloadWorkspace when writing to a Cargo.toml file.
+          reload_workspace_from_cargo_toml = true,
+
+          -- These apply to the default RustSetInlayHints command
+          inlay_hints = {
+            -- automatically set inlay hints (type hints)
+            -- default: true
+            auto = true,
+
+            -- Only show inlay hints for the current line
+            only_current_line = false,
+
+            -- whether to show parameter hints with the inlay hints or not
+            -- default: true
+            show_parameter_hints = true,
+
+            -- prefix for parameter hints
+            -- default: "<-"
+            parameter_hints_prefix = "<- ",
+
+            -- prefix for all the other hints (type, chaining)
+            -- default: "=>"
+            other_hints_prefix = "=> ",
+
+            -- whether to align to the length of the longest line in the file
+            max_len_align = false,
+
+            -- padding from the left if max_len_align is true
+            max_len_align_padding = 1,
+
+            -- whether to align to the extreme right or not
+            right_align = false,
+
+            -- padding from the right if right_align is true
+            right_align_padding = 7,
+
+            -- The color of the hints
+            highlight = "Comment",
+          },
+        },
+      }
+
+      local rt = require('rust-tools')
+      rt.setup(opts)
+
+      -- Hover action
+      vim.keymap.set("n", "<C-space>", rt.hover_actions.hover_actions, { buffer = bufnr })
+      -- Code action groups
+      vim.keymap.set("n", "<Leader>ca", rt.code_action_group.code_action_group, { buffer = bufnr })
+    end
+  },
+
+  -- cmp
+  {
+    "hrsh7th/nvim-cmp",
+    event = { "BufReadPre" },
+    dependencies = {
+      { 'hrsh7th/cmp-buffer' },
+      { 'hrsh7th/cmp-path' },
+      { 'hrsh7th/cmp-nvim-lua' },
+      { "hrsh7th/cmp-nvim-lsp", },
+      {
+        'L3MON4D3/LuaSnip',
+        -- follow latest release.
+        version = "v2.*", -- Replace <CurrentMajor> by the latest released major (first number of latest release)
+        -- install jsregexp (optional!).
+        build = "make install_jsregexp",
+        lazy = true,
+        dependencies = { 'VonHeikemen/the-good-snippets', },
+      },
+      { 'saadparwaiz1/cmp_luasnip', },
+      { "rafamadriz/friendly-snippets" }, -- useful snippets
+      { "onsails/lspkind.nvim" },         -- vs-code like pictograms
+    },
+    config = function()
+      local cmp = require("cmp")
+
+      local luasnip = require("luasnip")
+
+      -- loads vscode style snippets from installed plugins (e.g. friendly-snippets)
+      require("luasnip.loaders.from_vscode").lazy_load()
+      local lspkind = require("lspkind")
+
+      cmp.setup({
+        completion = {
+          completeopt = "menu,menuone,preview,noselect",
+        },
+        snippet = { -- configure how nvim-cmp interacts with snippet engine
+          expand = function(args)
+            luasnip.lsp_expand(args.body)
+          end,
+        },
+        mapping = cmp.mapping.preset.insert({
+          ["<C-k>"] = cmp.mapping.select_prev_item(), -- previous suggestion
+          ["<C-j>"] = cmp.mapping.select_next_item(), -- next suggestion
+          ["<C-u>"] = cmp.mapping.scroll_docs(-4),
+          ["<C-d>"] = cmp.mapping.scroll_docs(4),
+          ["<C-Space>"] = cmp.mapping.complete(), -- show completion suggestions
+          ["<C-e>"] = cmp.mapping.abort(),        -- close completion window
+          ["<CR>"] = cmp.mapping.confirm({ select = false }),
+        }),
+        window = {
+          documentation = cmp.config.window.bordered(),
+          completion = cmp.config.window.bordered()
+        },
+        -- sources for autocompletion
+        sources = cmp.config.sources({
+          { name = "nvim_lsp" },
+          { name = "luasnip" }, -- snippets
+          { name = "buffer" },  -- text within current buffer
+          { name = "path" },    -- file system paths
+        }),
+
+        -- configure lspkind for vs-code like pictograms in completion menu
+        formatting = {
+          fields = { 'menu', 'abbr', 'kind' },
+          format = lspkind.cmp_format({
+            maxwidth = 50, -- prevent the popup from showing more than provided characters (e.g 50 will not show more than 50 characters)
+            -- can also be a function to dynamically calculate max width such as
+            -- maxwidth = function() return math.floor(0.45 * vim.o.columns) end,
+            ellipsis_char = '...',    -- when popup menu exceed maxwidth, the truncated part would show ellipsis_char instead (must define maxwidth first)
+            show_labelDetails = true, -- show labelDetails in menu. Disabled by default
+
+            -- The function below will be called before any actual modifications from lspkind
+            -- so that you can provide more controls on popup customization. (See [#30](https://github.com/onsails/lspkind-nvim/pull/30))
+            before = function(entry, item)
+              local menu_icon = {
+                nvim_lsp = 'λ ',
+                luasnip = '⋗ ',
+                buffer = 'Ω ',
+                path = '🖫 ',
+              }
+
+              item.menu = menu_icon[entry.source.name]
+              return item
+            end
+          })
+        },
+      })
+    end
+  },
+}
