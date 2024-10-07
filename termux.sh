@@ -40,6 +40,7 @@ install_packages() {
         eza
         fish
         whiptail
+        nodejs
         neovim
         build-essential
         git
