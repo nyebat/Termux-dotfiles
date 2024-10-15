@@ -1,72 +1,65 @@
-
--- Mendapatkan informasi dasar dari buffer aktif
-local function getBufferInfo()
-    return {
-        sourcePath = vim.fn.expand('%'),        -- Path lengkap dari file buffer (/path/filename.ext)
-        baseName = vim.fn.expand('%:r'),        -- Nama file tanpa ekstensi (/path/filename)
-        fileType = vim.fn.expand('%:e'),        -- Ekstensi file (tipe file) (sh, cpp, rs, fish, java, kt)
-        fileName = vim.fn.expand('%:t:r'),      -- Nama file dari buffer tanpa ekstensi ( filename)
+-- compile and run
+function BuffRunner ()
+    local get = {
+        src = vim.fn.expand('%'),      --path of buffer file
+        dest = vim.fn.expand('%:r'),   --path buff without file ekstension
+        type = vim.fn.expand('%:e'),   --ekstension only
+        name = vim.fn.expand('%:t:r'), --file name of buffer
     }
-end
 
--- Menyusun perintah berdasarkan tipe file
-local function buildCommand(bufferInfo)
-    local languageCommands = {
-        lua = { run = "lua " .. bufferInfo.sourcePath },
-        sh = { run = "bash " .. bufferInfo.sourcePath },
-        fish = { run = "fish " .. bufferInfo.sourcePath },
-        rs = { run = "cd " .. vim.fn.expand('%:h') .. " && cargo run -q", cleanup = " && cargo clean" },
+    local Buffer = {
+        --[[ BASH ]]
+        sh = {
+            run = "/usr/bin/bash " .. get.src
+        },
+        --[[ FISH ]]
+        fish = {
+            run = "fish " .. get.src
+        },
+        --[[ RUSTLANG ]]
+        rs = {
+            run = 'cd %:h && RUSTFLAGS=\\"-Awarnings\\" cargo run -q',
+            -- delTemp = " && sleep 0.1 && cargo clean",
+        },
+        --[[ C++ ]]
         cpp = {
-            compile = string.format("g++ %s -o %s", bufferInfo.sourcePath, bufferInfo.baseName),
-            run = string.format("&& ./%s", bufferInfo.baseName),
-            cleanup = string.format("&& rm -f %s", bufferInfo.baseName),
+            compile = string.format("g++ %s -o %s ", get.src, get.dest),
+            run = string.format("&& %s ", get.dest),
+            delTemp = string.format("&& rm -rf %s", get.dest)
         },
+        --[[ JAVA ]]
         java = {
-            compile = string.format("javac %s -d %s", bufferInfo.sourcePath, bufferInfo.baseName),
-            run = string.format("&& cd %s && java %s", bufferInfo.baseName, bufferInfo.fileName),
-            cleanup = string.format("&& rm -rf %s", bufferInfo.baseName),
+            compile = string.format("javac %s -d %s ", get.src, get.dest),
+            run = string.format("&& cd %s && java %s ", get.dest, get.name),
+            delTemp = string.format("&& cd $HOME && rm -rf %s", get.dest),
         },
+        --[[ KOTLIN ]]
         kt = {
-            compile = string.format("kotlinc %s -include-runtime -d %s.jar", bufferInfo.sourcePath, bufferInfo.baseName),
-            run = string.format("&& java -jar %s.jar", bufferInfo.baseName),
-            cleanup = string.format("&& rm -f %s.jar", bufferInfo.baseName),
+            compile = string.format("kotlinc %s -include-runtime -d %s.jar ", get.src, get.dest),
+            run = string.format("&& java -jar %s.jar ", get.dest),
+            delTemp = string.format("&& rm -rf %s.jar", get.dest),
         },
     }
 
-    local commands = languageCommands[bufferInfo.fileType]
-    if not commands then
-        print("\n[Err!] This file type is not supported! Only supports: {sh, fish, cpp, rust, java, kotlin}\n")
-        return nil
-    end
-
-    -- Membangun perintah yang akan dieksekusi
-    local commandString = ""
-    for _, action in ipairs({"compile", "run", "cleanup"}) do
-        if commands[action] then
-            commandString = commandString .. commands[action]
+    local cmd = ""
+    if Buffer[get.type] then
+        for _, action in ipairs({ "compile", "run", "delTemp" }) do
+            if Buffer[get.type][action] then
+                cmd = cmd .. Buffer[get.type][action]
+            end
         end
+    else
+        print("\n[Err!] this file not setup!\n\nonly support for:\n{sh, fish, cpp, rush, java, kotlin}\n")
+        return
     end
 
-    return commandString
-end
-
--- Menjalankan perintah dalam terminal baru
-local function executeCommand(commandString)
-    if commandString and commandString ~= "" then
-        vim.api.nvim_command(":w")  -- Simpan file sebelum menjalankan
-        vim.api.nvim_command("split term://" .. commandString) -- Jalankan perintah di terminal baru
+    if cmd ~= "" then
+        -- save file
+        vim.api.nvim_command(":w")
+        -- compile, run, and delete binary temp
+        vim.api.nvim_command("split term://" .. cmd)
     end
 end
 
--- Fungsi utama untuk mengompilasi dan menjalankan kode
-local function main()
-    local bufferInfo = getBufferInfo()                -- Ambil informasi buffer
-    local commandString = buildCommand(bufferInfo)     -- Bangun perintah berdasarkan tipe file
-    executeCommand(commandString)                       -- Jalankan perintah
-end
-
-function BuffRunner() main() end
-
--- Daftarkan perintah BuffRun untuk menjalankan fungsi BuffRunner
 vim.api.nvim_command("command! -nargs=0 BuffRun lua BuffRunner()")
 

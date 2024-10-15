@@ -21,7 +21,7 @@ vim.api.nvim_create_autocmd('TermOpen', {
   pattern = '*',
   group = group,
   callback = function()
-    -- vim.cmd('file Terminal')
+    vim.cmd('file Terminal')
     vim.cmd('setlocal nonumber')
     vim.cmd('setlocal norelativenumber')
     vim.api.nvim_feedkeys('i', 'n', false)

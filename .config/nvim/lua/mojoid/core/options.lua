@@ -35,7 +35,7 @@ local opts = {
   writebackup = false,
   swapfile = false,
 
-  undodir = undodir,
+  undodir = 'undodir',
   undofile = false,
 
   ruler = false,

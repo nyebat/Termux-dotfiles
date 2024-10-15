@@ -50,3 +50,4 @@ keymap.set("n", "<leader>tf", "<cmd>tabnew %<CR>", { desc = "open current buffer
 
 -- code runner
 keymap.set("n", "<leader>x", "<cmd>BuffRun<cr>", { desc = "Code runner" })
+keymap.set("n", "<leader>run", ':split term://cd %:h && RUSTFLAGS=\\"-Awarnings\\" cargo run', { desc = "Code runner" })

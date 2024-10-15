@@ -1,21 +1,22 @@
 return {
-  -- treesitter
-  {"nvim-treesitter/nvim-treesitter", build = ":TSUpdate",
-    config = function()
-      local config = require("nvim-treesitter.configs")
-      config.setup({
-        ensure_installed = {"lua", "rust"},
-        highlight = { enable = true },
-        indent = { enable = true },
-        auto_install = true,
-        })
-      
-    end
-  },
+    -- treesitter
+    {
+        "nvim-treesitter/nvim-treesitter",
+        build = ":TSUpdate",
+        config = function()
+            local config = require("nvim-treesitter.configs")
+            config.setup({
+                ensure_installed = { "lua", "rust" },
+                highlight = { enable = true },
+                indent = { enable = true },
+                auto_install = true,
+            })
+        end
+    },
 
-  -- nvim surround
-  {
-    --[[  Old text                    Command         New text
+    -- nvim surround
+    {
+        --[[  Old text                    Command         New text
         --------------------------------------------------------------------------------
         surround_words             ysiw)           (surround_words)
         make strings               ys$"            "make strings"
@@ -26,19 +27,35 @@ return {
         delete(function calls)     dsf             function calls
     --]]
 
-    "kylechui/nvim-surround",
-    version = "*", -- Use for stability; omit to use `main` branch for the latest features
-    event = "InsertEnter",
-    config = function()
-      require("nvim-surround").setup({})
-    end
-  },
+        "kylechui/nvim-surround",
+        version = "*", -- Use for stability; omit to use `main` branch for the latest features
+        event = "InsertEnter",
+        config = function()
+            require("nvim-surround").setup({})
+        end
+    },
 
-  -- color palet
-  {
-    'norcalli/nvim-colorizer.lua',
-    config = function()
-      require 'colorizer'.setup()
-    end
-  },
+    -- color palet
+    {
+        'norcalli/nvim-colorizer.lua',
+        config = function()
+            require 'colorizer'.setup()
+        end
+    },
+
+    -- comment / uncomment
+    {
+        -- <gcc> comment single line
+        -- <gbc> comment multyline
+        'numToStr/Comment.nvim',
+        event = "InsertEnter",
+        config = function()
+            require('Comment').setup()
+        end
+    },
+
+    -- auto pairs
+    {
+        "jiangmiao/auto-pairs", event = "InsertEnter"
+    },
 }

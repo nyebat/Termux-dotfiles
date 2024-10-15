@@ -1,4 +1,4 @@
 require("mojoid.core.keymaps")
+require("mojoid.core.lazy")
 require("mojoid.core.options")
 require('mojoid.core.autocmd')
-require("mojoid.core.lazy")
