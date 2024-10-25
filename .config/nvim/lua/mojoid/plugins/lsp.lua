@@ -1,65 +1,190 @@
 return {
     {
         "neovim/nvim-lspconfig",
+        dependencies = {
+            "williamboman/mason.nvim",
+            "williamboman/mason.nvim",
+            "williamboman/mason-lspconfig.nvim",
+            "hrsh7th/nvim-cmp",
+            "hrsh7th/cmp-nvim-lsp",
+            "L3MON4D3/LuaSnip",
+            "saadparwaiz1/cmp_luasnip",
+            "rafamadriz/friendly-snippets",
+        },
         config = function()
-            local lspconfig = require('lspconfig')
-            lspconfig.rust_analyzer.setup {}
-            lspconfig.lua_ls.setup {}
+            -- we'll need to call lspconfig to pass our server to the native neovim lspconfig.
+            local lspconfig_status_ok, lspconfig = pcall(require, "lspconfig")
+            if not lspconfig_status_ok then
+                vim.notify("Failed to load nvim-lspconfig")
+                return
+            end
 
+            -- Protected calls to load necessary modules
+            local status_ok, mason = pcall(require, "mason")
+            if not status_ok then
+                vim.notify("Failed to load mason")
+                return
+            end
+
+            local status_ok_1, mason_lspconfig = pcall(require, "mason-lspconfig")
+            if not status_ok_1 then
+                vim.notify("Failed to load mason-lspconfig")
+                return
+            end
+
+            local M = {}
+
+            local status_cmp_ok, cmp_nvim_lsp = pcall(require, "cmp_nvim_lsp")
+            if not status_cmp_ok then
+                vim.notify("Failed to load cmp_nvim_lsp")
+                return
+            end
+            -- Setup LSP capabilities
+            M.capabilities = vim.lsp.protocol.make_client_capabilities()
+            M.capabilities = cmp_nvim_lsp.default_capabilities(M.capabilities)
+            M.capabilities.textDocument.completion.completionItem.snippetSupport = true
+
+            -- Setup Mason
+            -- Define the LSP servers to be managed by Mason
+            local servers = { "lua_ls", "rust_analyzer", "clangd", "bashls" }
+
+            -- Here we declare which settings to pass to the mason, and also ensure servers are installed. If not, they will be installed automatically.
+            local settings = {
+                ui = {
+                    border = "rounded",
+                    icons = {
+                        package_installed = "◍",
+                        package_pending = "◍",
+                        package_uninstalled = "◍",
+                    },
+                },
+                log_level = vim.log.levels.INFO,
+                max_concurrent_installers = 4,
+            }
+            mason.setup(settings)
+            mason_lspconfig.setup {
+                ensure_installed = { "bashls", }, --servers,
+                automatic_installation = false,
+            }
+
+
+            local opts = {}
+
+            for _, server in pairs(servers) do
+                opts = {
+                    -- getting "on_attach" and capabilities from handlers
+                    on_attach = M.on_attach,
+                    capabilities = M.capabilities,
+                }
+
+                -- pass them to lspconfig
+                lspconfig[server].setup(opts)
+            end
+            -- Setup function to initialize Mason and configure diagnostics
+            -- Define diagnostic signs
             local signs = {
-                -- change the "?" to an icon that you like
                 { name = 'DiagnosticSignError', text = '' },
                 { name = 'DiagnosticSignWarn', text = '' },
                 { name = 'DiagnosticSignHint', text = '⚑' },
                 { name = 'DiagnosticSignInfo', text = '' },
             }
 
+            -- Register diagnostic signs
             for _, sign in ipairs(signs) do
                 vim.fn.sign_define(sign.name, { texthl = sign.name, text = sign.text, numhl = "" })
             end
 
+            -- Configure diagnostics
             local config = {
                 virtual_text = true,
-                -- show signs
-                signs = {
-                    active = signs,
-                },
+                signs = { active = signs },
                 update_in_insert = true,
                 underline = true,
                 severity_sort = true,
             }
-
             vim.diagnostic.config(config)
 
-            vim.lsp.handlers['textDocument/hover'] = vim.lsp.with(
-                vim.lsp.handlers.hover,
-                { border = 'rounded' }
-            )
+            -- Setup LSP handlers for hover and signature help
+            vim.lsp.handlers['textDocument/hover'] = vim.lsp.with(vim.lsp.handlers.hover,
+                { border = 'rounded' })
+            vim.lsp.handlers['textDocument/signatureHelp'] = vim.lsp.with(vim.lsp.handlers.signature_help,
+                { border = 'rounded' })
 
-            vim.lsp.handlers['textDocument/signatureHelp'] = vim.lsp.with(
-                vim.lsp.handlers.signature_help,
-                { border = 'rounded' }
-            )
 
-            -- Use LspAttach autocommand to only map the following keys
-            -- after the language server attaches to the current buffer
-            vim.api.nvim_create_autocmd('LspAttach', {
-                group = vim.api.nvim_create_augroup('UserLspConfig', {}),
-                callback = function(ev)
-                    -- Enable completion triggered by <c-x><c-o>
-                    vim.bo[ev.buf].omnifunc = 'v:lua.vim.lsp.omnifunc'
 
-                    -- Buffer local mappings.
-                    -- See `:help vim.lsp.*` for documentation on any of the below functions
-                    local opts = { buffer = ev.buf }
-                    vim.keymap.set('n', 'K', vim.lsp.buf.hover, opts)
-                    vim.keymap.set('n', '<space>rn', vim.lsp.buf.rename, opts)
-                    vim.keymap.set({ 'n', 'v' }, '<space>ca', vim.lsp.buf.code_action, opts)
-                    vim.keymap.set('n', '<space>f', function()
-                        vim.lsp.buf.format { async = true }
-                    end, opts)
-                end,
-            })
+            -- Function to set up key mappings for LSP
+            local function lsp_keymaps(bufnr)
+                local opts = { noremap = true, silent = true }
+                vim.api.nvim_buf_set_keymap(bufnr, "n", "gd", "<cmd>lua vim.lsp.buf.definition()<CR>", opts)
+                vim.api.nvim_buf_set_keymap(bufnr, "n", "K", "<cmd>lua vim.lsp.buf.hover()<CR>", opts)
+                vim.api.nvim_buf_set_keymap(bufnr, "n", "<leader>lr", "<cmd>lua vim.lsp.buf.rename()<CR>", opts)
+                vim.api.nvim_buf_set_keymap(bufnr, "n", "gl", "<cmd>lua vim.diagnostic.open_float()<CR>", opts)
+                vim.cmd([[ command! Format execute 'lua vim.lsp.buf.format()' ]])
+            end
+
+            -- Function for formatting with null-ls on buffer write
+            local function lsp_formatting(bufnr)
+                vim.lsp.buf.format({
+                    filter = function(client)
+                        return client.name == "null-ls"
+                    end,
+                    bufnr = bufnr,
+                })
+            end
+
+            -- Auto command group for formatting on save
+            local augroup = vim.api.nvim_create_augroup("LspFormatting", {})
+
+            -- Attach function to be called when LSP server attaches to a buffer
+            M.on_attach = function(client, bufnr)
+                lsp_keymaps(bufnr)
+                if client.supports_method("textDocument/formatting") then
+                    vim.api.nvim_clear_autocmds({ group = augroup, buffer = bufnr })
+                    vim.api.nvim_create_autocmd("BufWritePre", {
+                        group = augroup,
+                        buffer = bufnr,
+                        callback = function()
+                            lsp_formatting(bufnr)
+                        end,
+                    })
+                end
+            end
+
+            -- Functions to manage format on save
+            function M.enable_format_on_save()
+                vim.cmd [[
+                    augroup format_on_save
+                    autocmd!
+                    autocmd BufWritePre * lua vim.lsp.buf.format({ async = false })
+                    augroup end
+                    ]]
+                vim.notify("Enabled format on save")
+            end
+
+            function M.disable_format_on_save()
+                M.remove_augroup("format_on_save")
+                vim.notify("Disabled format on save")
+            end
+
+            function M.toggle_format_on_save()
+                if vim.fn.exists("#format_on_save#BufWritePre") == 0 then
+                    M.enable_format_on_save()
+                else
+                    M.disable_format_on_save()
+                end
+            end
+
+            function M.remove_augroup(name)
+                if vim.fn.exists("#" .. name) == 1 then
+                    vim.cmd("au! " .. name)
+                end
+            end
+
+            -- Toggle format on save at the start
+            M.toggle_format_on_save()
+
+            -- Return the module
+            return M
         end
     },
 
@@ -101,12 +226,6 @@ return {
                         -- prefix for all the other hints (type, chaining)
                         -- default: "=>"
                         other_hints_prefix = "=> ",
-
-                        -- whether to align to the length of the longest line in the file
-                        max_len_align = false,
-
-                        -- padding from the left if max_len_align is true
-                        max_len_align_padding = 1,
 
                         -- whether to align to the extreme right or not
                         right_align = false,
