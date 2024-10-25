@@ -21,8 +21,8 @@ return {
                     sorting_strategy = "ascending",
                     layout_strategy = "vertical",
                     layout_config = {
-                        width = 0.85,
-                        height = 0.75,
+                        width = 0.80,
+                        height = 0.65,
                         prompt_position = "top",
                         horizontal = {
                             mirror = true,
@@ -35,7 +35,7 @@ return {
                     },
                     file_ignore_patterns = { 'node_modules', '.git' }, -- Hapus '__pycache__' dari daftar
                     generic_sorter = require('telescope.sorters').get_generic_fuzzy_sorter,
-                    path_display = { "shorten" },
+                    -- path_display = { "shorten" },
                     mappings = {
                         i = {
                             --["<esc>"] = actions.close,
@@ -57,10 +57,10 @@ return {
                 extensions = {
                     extensions = {
                         fzf = {
-                            fuzzy = true,     -- false will only do exact matching
+                            fuzzy = true,                   -- false will only do exact matching
                             override_generic_sorter = true, -- override the generic sorter
-                            override_file_sorter = true, -- override the file sorter
-                            case_mode = "smart_case", -- or "ignore_case" or "respect_case"
+                            override_file_sorter = true,    -- override the file sorter
+                            case_mode = "smart_case",       -- or "ignore_case" or "respect_case"
                             -- the default case_mode is "smart_case"
                         },
                     }
