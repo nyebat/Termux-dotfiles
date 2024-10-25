@@ -6,10 +6,10 @@ return {
             "williamboman/mason.nvim",
             "williamboman/mason-lspconfig.nvim",
             "hrsh7th/nvim-cmp",
-            "hrsh7th/cmp-nvim-lsp",
-            "L3MON4D3/LuaSnip",
-            "saadparwaiz1/cmp_luasnip",
-            "rafamadriz/friendly-snippets",
+            -- "hrsh7th/cmp-nvim-lsp",
+            -- "L3MON4D3/LuaSnip",
+            -- "saadparwaiz1/cmp_luasnip",
+            -- "rafamadriz/friendly-snippets",
         },
         config = function()
             -- we'll need to call lspconfig to pass our server to the native neovim lspconfig.
